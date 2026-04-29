@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS `test_target` (
   `host` varchar(100) NOT NULL COMMENT '目标主机',
   `port` int NOT NULL COMMENT '目标端口',
   `type` varchar(20) DEFAULT 'other' COMMENT '目标类型',
+  `url` varchar(500) DEFAULT NULL COMMENT '目标URL',
   `description` varchar(500) DEFAULT NULL COMMENT '描述',
   `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',

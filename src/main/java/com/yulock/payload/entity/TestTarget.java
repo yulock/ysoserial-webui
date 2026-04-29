@@ -20,7 +20,9 @@ public class TestTarget {
     private Integer port;
     
     private String type;
-    
+
+    private String url;
+
     private String description;
     
     @TableField(fill = FieldFill.INSERT)

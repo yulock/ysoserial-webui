@@ -1,7 +1,6 @@
 <template>
   <div class="payload-container">
     <el-row :gutter="20">
-      <!-- 左侧：Payload生成表单 -->
       <el-col :span="12">
         <el-card>
           <template #header>
@@ -9,7 +8,7 @@
               <span><el-icon><Magic /></el-icon> Payload生成</span>
             </div>
           </template>
-          
+
           <el-form
             ref="formRef"
             :model="form"
@@ -37,7 +36,7 @@
                 </el-option>
               </el-select>
             </el-form-item>
-            
+
             <el-form-item v-if="selectedGadget">
               <el-alert
                 :title="`依赖: ${selectedGadget.dependencies || '无'}`"
@@ -46,7 +45,7 @@
                 show-icon
               />
             </el-form-item>
-            
+
             <el-form-item label="执行命令" prop="command">
               <el-input
                 v-model="form.command"
@@ -55,14 +54,14 @@
                 placeholder="请输入要执行的命令，如: whoami"
               />
             </el-form-item>
-            
+
             <el-form-item label="输出格式" prop="payloadType">
               <el-radio-group v-model="form.payloadType">
                 <el-radio label="base64">Base64</el-radio>
                 <el-radio label="hex">Hex</el-radio>
               </el-radio-group>
             </el-form-item>
-            
+
             <el-form-item>
               <el-button
                 type="primary"
@@ -75,8 +74,7 @@
             </el-form-item>
           </el-form>
         </el-card>
-        
-        <!-- 生成进度 -->
+
         <el-card v-if="progressVisible" style="margin-top: 20px">
           <template #header>
             <span>生成进度</span>
@@ -95,8 +93,7 @@
           </div>
         </el-card>
       </el-col>
-      
-      <!-- 右侧：结果展示和测试 -->
+
       <el-col :span="12">
         <el-card v-if="result">
           <template #header>
@@ -107,14 +104,14 @@
               </div>
             </div>
           </template>
-          
+
           <el-input
             v-model="result.payload"
             type="textarea"
             :rows="10"
             readonly
           />
-          
+
           <div class="result-actions">
             <el-button type="primary" @click="copyPayload">
               <el-icon><Copy-document /></el-icon> 复制
@@ -124,20 +121,45 @@
             </el-button>
           </div>
         </el-card>
-        
-        <!-- 在线测试 -->
+
         <el-card v-if="result" style="margin-top: 20px">
           <template #header>
             <div class="card-header">
               <span><el-icon><Connection /></el-icon> 在线测试</span>
             </div>
           </template>
-          
+
           <el-form :model="testForm" label-position="top">
+            <el-form-item label="选择目标 (从目标管理加载)">
+              <el-select
+                v-model="selectedTargetId"
+                placeholder="选择已保存的测试目标"
+                style="width: 100%"
+                clearable
+                filterable
+                @change="onTargetSelect"
+              >
+                <el-option
+                  v-for="target in savedTargets"
+                  :key="target.id"
+                  :label="`${target.name} (${target.host}:${target.port}, ${target.type.toUpperCase()})`"
+                  :value="target.id"
+                />
+              </el-select>
+            </el-form-item>
+
+            <el-form-item label="测试类型">
+              <el-radio-group v-model="testForm.type" @change="onTypeChange">
+                <el-radio label="socket">Socket发送</el-radio>
+                <el-radio label="url">URL发送</el-radio>
+                <el-radio label="local">本地验证</el-radio>
+              </el-radio-group>
+            </el-form-item>
+
             <el-form-item label="目标主机" v-if="testForm.type === 'socket'">
               <el-input v-model="testForm.host" placeholder="127.0.0.1" />
             </el-form-item>
-            
+
             <el-form-item label="目标端口" v-if="testForm.type === 'socket'">
               <el-input-number v-model="testForm.port" :min="1" :max="65535" style="width: 100%" />
             </el-form-item>
@@ -145,15 +167,7 @@
             <el-form-item label="目标URL" v-if="testForm.type === 'url'">
               <el-input v-model="testForm.url" placeholder="http://example.com/endpoint" />
             </el-form-item>
-            
-            <el-form-item label="测试类型">
-              <el-radio-group v-model="testForm.type">
-                <el-radio label="socket">Socket发送</el-radio>
-                <el-radio label="url">URL发送</el-radio>
-                <el-radio label="local">本地验证</el-radio>
-              </el-radio-group>
-            </el-form-item>
-            
+
             <el-form-item>
               <el-button
                 type="danger"
@@ -164,14 +178,13 @@
               </el-button>
             </el-form-item>
           </el-form>
-          
+
           <el-alert
-            v-if="testResult"
-            :title="testResult"
-            :type="testSuccess ? 'success' : 'error'"
-            show-icon
+            v-if="testResultText"
+            :title="testResultText"
+            :type="testResultType"
             :closable="false"
-            style="margin-top: 15px"
+            style="margin-top: 15px; white-space: pre-wrap; word-break: break-all;"
           />
         </el-card>
       </el-col>
@@ -183,6 +196,7 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getGadgets, generatePayload, testPayload } from '@/api/payload'
+import { getTargets } from '@/api/lab'
 
 const formRef = ref()
 const gadgets = ref([])
@@ -190,8 +204,10 @@ const generating = ref(false)
 const testing = ref(false)
 const result = ref(null)
 const progressVisible = ref(false)
-const testResult = ref('')
-const testSuccess = ref(false)
+const testResultText = ref('')
+const testResultType = ref('info')
+const savedTargets = ref([])
+const selectedTargetId = ref(null)
 
 const form = reactive({
   gadgetName: '',
@@ -227,17 +243,14 @@ const rules = {
   ]
 }
 
-const onGadgetChange = () => {
-  // Gadget选择变化时的处理
-}
+const onGadgetChange = () => {}
 
 const handleGenerate = async () => {
   try {
     await formRef.value.validate()
     generating.value = true
     progressVisible.value = true
-    
-    // 模拟进度
+
     for (let i = 0; i < progressSteps.value.length; i++) {
       progressSteps.value[i].status = 'primary'
       progressSteps.value[i].icon = 'Loading'
@@ -245,14 +258,16 @@ const handleGenerate = async () => {
       progressSteps.value[i].status = 'success'
       progressSteps.value[i].icon = 'Check'
     }
-    
+
     const res = await generatePayload({
       gadgetName: form.gadgetName,
       command: form.command,
       payloadType: form.payloadType
     })
-    
+
     result.value = res.data
+    testResultText.value = ''
+    testResultType.value = 'info'
     ElMessage.success('生成成功')
   } catch (error) {
     console.error(error)
@@ -277,24 +292,48 @@ const handleTest = async () => {
     ElMessage.warning('请输入目标URL')
     return
   }
-  
+
   testing.value = true
+  testResultText.value = ''
   try {
     const res = await testPayload({
       payload: result.value.payload,
       host: testForm.host,
       port: testForm.port,
       url: testForm.url,
-      type: testForm.type
+      type: testForm.type,
+      recordId: result.value.id || null
     })
-    testResult.value = res.data
-    testSuccess.value = true
+    testResultText.value = res.data
+    testResultType.value = res.data && res.data.includes('[FAIL]') ? 'error' : 'success'
   } catch (error) {
-    testResult.value = error.message || '测试失败'
-    testSuccess.value = false
+    testResultText.value = error.message || '测试失败'
+    testResultType.value = 'error'
   } finally {
     testing.value = false
   }
+}
+
+const onTargetSelect = (targetId) => {
+  if (!targetId) {
+    testForm.host = '127.0.0.1'
+    testForm.port = 8080
+    testForm.url = ''
+    testForm.type = 'socket'
+    return
+  }
+  const target = savedTargets.value.find(t => t.id === targetId)
+  if (target) {
+    testForm.type = target.type || 'socket'
+    testForm.host = target.host || '127.0.0.1'
+    testForm.port = target.port || 8080
+    testForm.url = target.url || ''
+    ElMessage.success(`已选择目标: ${target.name}`)
+  }
+}
+
+const onTypeChange = () => {
+  selectedTargetId.value = null
 }
 
 const copyPayload = () => {
@@ -312,6 +351,15 @@ const downloadPayload = () => {
   URL.revokeObjectURL(url)
 }
 
+const fetchTargets = async () => {
+  try {
+    const res = await getTargets()
+    savedTargets.value = res.data || []
+  } catch (error) {
+    console.error(error)
+  }
+}
+
 onMounted(async () => {
   try {
     const res = await getGadgets()
@@ -319,6 +367,7 @@ onMounted(async () => {
   } catch (error) {
     console.error(error)
   }
+  fetchTargets()
 })
 </script>
 

@@ -72,10 +72,20 @@ public class PayloadController {
         Integer port = params.get("port") != null ? ((Number) params.get("port")).intValue() : null;
         String url = (String) params.get("url");
         String type = (String) params.getOrDefault("type", "socket");
+        Long recordId = params.get("recordId") != null ? ((Number) params.get("recordId")).longValue() : null;
 
         try {
             byte[] payload = Base64.decodeBase64(payloadBase64);
             String result = payloadService.testPayload(payload, host, port, url, type);
+
+            if (recordId != null) {
+                PayloadRecord record = payloadRecordService.getById(recordId);
+                if (record != null && record.getUserId().equals(StpUtil.getLoginIdAsLong())) {
+                    record.setResult(result);
+                    payloadRecordService.updateById(record);
+                }
+            }
+
             return SaResult.ok().setData(result);
         } catch (Exception e) {
             return SaResult.error("测试失败: " + e.getMessage());
