@@ -6,5 +6,5 @@ import java.util.Map;
 public interface PayloadService {
     List<Map<String, Object>> getAvailableGadgets();
     byte[] generatePayload(String gadgetName, String command);
-    String testPayload(byte[] payload, String host, Integer port, String type);
+    String testPayload(byte[] payload, String host, Integer port, String url, String type);
 }

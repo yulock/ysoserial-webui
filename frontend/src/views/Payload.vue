@@ -134,17 +134,22 @@
           </template>
           
           <el-form :model="testForm" label-position="top">
-            <el-form-item label="目标主机">
+            <el-form-item label="目标主机" v-if="testForm.type === 'socket'">
               <el-input v-model="testForm.host" placeholder="127.0.0.1" />
             </el-form-item>
             
-            <el-form-item label="目标端口">
+            <el-form-item label="目标端口" v-if="testForm.type === 'socket'">
               <el-input-number v-model="testForm.port" :min="1" :max="65535" style="width: 100%" />
+            </el-form-item>
+
+            <el-form-item label="目标URL" v-if="testForm.type === 'url'">
+              <el-input v-model="testForm.url" placeholder="http://example.com/endpoint" />
             </el-form-item>
             
             <el-form-item label="测试类型">
               <el-radio-group v-model="testForm.type">
                 <el-radio label="socket">Socket发送</el-radio>
+                <el-radio label="url">URL发送</el-radio>
                 <el-radio label="local">本地验证</el-radio>
               </el-radio-group>
             </el-form-item>
@@ -197,6 +202,7 @@ const form = reactive({
 const testForm = reactive({
   host: '127.0.0.1',
   port: 8080,
+  url: '',
   type: 'socket'
 })
 
@@ -266,6 +272,11 @@ const handleTest = async () => {
     ElMessage.warning('请先生成Payload')
     return
   }
+
+  if (testForm.type === 'url' && !testForm.url) {
+    ElMessage.warning('请输入目标URL')
+    return
+  }
   
   testing.value = true
   try {
@@ -273,6 +284,7 @@ const handleTest = async () => {
       payload: result.value.payload,
       host: testForm.host,
       port: testForm.port,
+      url: testForm.url,
       type: testForm.type
     })
     testResult.value = res.data

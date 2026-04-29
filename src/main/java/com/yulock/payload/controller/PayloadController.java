@@ -69,12 +69,13 @@ public class PayloadController {
     public SaResult testPayload(@RequestBody Map<String, Object> params) {
         String payloadBase64 = (String) params.get("payload");
         String host = (String) params.get("host");
-        Integer port = (Integer) params.get("port");
+        Integer port = params.get("port") != null ? ((Number) params.get("port")).intValue() : null;
+        String url = (String) params.get("url");
         String type = (String) params.getOrDefault("type", "socket");
-        
+
         try {
             byte[] payload = Base64.decodeBase64(payloadBase64);
-            String result = payloadService.testPayload(payload, host, port, type);
+            String result = payloadService.testPayload(payload, host, port, url, type);
             return SaResult.ok().setData(result);
         } catch (Exception e) {
             return SaResult.error("测试失败: " + e.getMessage());

